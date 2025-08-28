@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from guapy.exceptions import GuacdConnectionError
+from guapy.exceptions import GuacdConnectionError, ProtocolParsingError, HandshakeError
 from guapy.guacd_client import GuacamoleProtocol, GuacdClient
 
 
@@ -39,18 +39,18 @@ class TestGuacamoleProtocol:
 
     def test_parse_instruction_invalid_no_semicolon(self):
         """Test parse_instruction with invalid input - no semicolon."""
-        result = GuacamoleProtocol.parse_instruction("6.select,3.rdp")
-        assert result == []
+        with pytest.raises(ProtocolParsingError, match="Invalid instruction: missing semicolon"):
+            GuacamoleProtocol.parse_instruction("6.select,3.rdp")
 
     def test_parse_instruction_invalid_format(self):
         """Test parse_instruction with invalid format."""
-        result = GuacamoleProtocol.parse_instruction("select,rdp;")
-        assert result == []
+        with pytest.raises(ProtocolParsingError, match="Invalid element: missing dot separator"):
+            GuacamoleProtocol.parse_instruction("select,rdp;")
 
     def test_parse_instruction_empty(self):
         """Test parse_instruction with empty input."""
-        result = GuacamoleProtocol.parse_instruction(";")
-        assert result == []
+        with pytest.raises(ProtocolParsingError, match="Invalid element: missing dot separator"):
+            GuacamoleProtocol.parse_instruction(";")
 
     def test_parse_instruction_with_dots_in_content(self):
         """Test parse_instruction with dots in content."""
@@ -60,23 +60,22 @@ class TestGuacamoleProtocol:
 
     def test_parse_instruction_length_mismatch(self):
         """Test parse_instruction with length mismatch."""
-        # This should trigger the "remaining" logic path
-        # where content length != expected length
-        # In "5.test", length is 5 but "test" has length 4, so it will be skipped
-        result = GuacamoleProtocol.parse_instruction("5.test,4.data;")
-        assert result == ["data"]
+        # This should trigger length mismatch error
+        # In "5.test", length is 5 but "test" has length 4
+        with pytest.raises(ProtocolParsingError, match="Element length mismatch"):
+            GuacamoleProtocol.parse_instruction("5.test,4.data;")
 
     def test_parse_instruction_invalid_length(self):
         """Test parse_instruction with invalid length."""
         # This should trigger the ValueError exception path
-        result = GuacamoleProtocol.parse_instruction("abc.test,4.data;")
-        assert result == ["data"]  # Only valid element should be parsed
+        with pytest.raises(ProtocolParsingError, match="Invalid length in element"):
+            GuacamoleProtocol.parse_instruction("abc.test,4.data;")
 
     def test_parse_instruction_no_dot_in_element(self):
         """Test parse_instruction with element missing dot."""
-        # This should trigger the "no dot" skip path
-        result = GuacamoleProtocol.parse_instruction("nodot,4.data;")
-        assert result == ["data"]  # Only valid element should be parsed
+        # This should trigger the "no dot" error path
+        with pytest.raises(ProtocolParsingError, match="Invalid element: missing dot separator"):
+            GuacamoleProtocol.parse_instruction("nodot,4.data;")
 
     def test_parse_attribute_with_dot(self):
         """Test parse_attribute with proper format."""
@@ -93,10 +92,8 @@ class TestGuacamoleProtocol:
         doesn't match expected."""
         # This creates a case where len(remaining) != expected_length
         # "10.test" - expected length is 10 but "test" is only 4 chars
-        result = GuacamoleProtocol.parse_instruction("10.test,4.data;")
-        assert result == [
-            "data"
-        ]  # Only "data" should be parsed, "test" should be skipped
+        with pytest.raises(ProtocolParsingError, match="Element length mismatch"):
+            GuacamoleProtocol.parse_instruction("10.test,4.data;")
 
 
 class TestGuacdClient:
@@ -151,6 +148,21 @@ class TestGuacdClient:
         assert guacd_client._activity_check_task is None
         assert hasattr(guacd_client, "logger")
         assert hasattr(guacd_client, "last_activity")
+        # Test filter initialization
+        assert len(guacd_client.filters) == 1
+        assert guacd_client.filters[0].__class__.__name__ == "ErrorFilter"
+
+    def test_apply_filters(self, guacd_client):
+        """Test _apply_filters method."""
+        # Test normal instruction passes through
+        instruction = ["ready", "connection_id"]
+        filtered = guacd_client._apply_filters(instruction)
+        assert filtered == instruction
+        
+        # Test error instruction raises exception
+        error_instruction = ["error", "Test error", "769"]  # 0x0301 = 769
+        with pytest.raises(Exception):  # Should raise GuapyUnauthorizedError
+            guacd_client._apply_filters(error_instruction)
 
     @pytest.mark.asyncio
     async def test_connect_success(self, guacd_client, mock_reader_writer):
@@ -284,11 +296,11 @@ class TestGuacdClient:
         guacd_client.send_instruction = AsyncMock()
         guacd_client._receive_instruction = AsyncMock(return_value=[])
 
-        with pytest.raises(ConnectionError) as exc_info:
+        with pytest.raises(HandshakeError) as exc_info:
             await guacd_client._start_handshake()
 
-        # Check that it's a ConnectionError wrapping a HandshakeError
-        assert "Handshake failed" in str(exc_info.value)
+        # Check that it's the specific HandshakeError
+        assert "No instruction received during handshake" in str(exc_info.value)
         guacd_client.send_instruction.assert_called_once()
         guacd_client._receive_instruction.assert_called_once()
 
@@ -298,11 +310,11 @@ class TestGuacdClient:
         guacd_client.send_instruction = AsyncMock()
         guacd_client._receive_instruction = AsyncMock(return_value=["error", "message"])
 
-        with pytest.raises(ConnectionError) as exc_info:
+        with pytest.raises(HandshakeError) as exc_info:
             await guacd_client._start_handshake()
 
-        # Check that it's a ConnectionError wrapping a HandshakeError
-        assert "Handshake failed" in str(exc_info.value)
+        # Check that it's the specific HandshakeError
+        assert "Expected 'args' instruction, got: error" in str(exc_info.value)
         guacd_client.send_instruction.assert_called_once()
         guacd_client._receive_instruction.assert_called_once()
 
@@ -402,7 +414,7 @@ class TestGuacdClientAdvanced:
             ]
         )
 
-        with pytest.raises(ConnectionError, match="Handshake failed"):
+        with pytest.raises(GuacdConnectionError, match="Unexpected handshake failure"):
             await guacd_client._start_handshake()
 
         assert guacd_client.state == GuacdClient.STATE_CLOSED
@@ -420,7 +432,7 @@ class TestGuacdClientAdvanced:
             ]
         )
 
-        with pytest.raises(ConnectionError, match="Handshake failed"):
+        with pytest.raises(GuacdConnectionError, match="Unexpected handshake failure"):
             await guacd_client._start_handshake()
 
         assert guacd_client.state == GuacdClient.STATE_CLOSED
@@ -438,7 +450,7 @@ class TestGuacdClientAdvanced:
             ]
         )
 
-        with pytest.raises(ConnectionError, match="Handshake failed"):
+        with pytest.raises(HandshakeError, match="No 'ready' instruction received from guacd"):
             await guacd_client._start_handshake()
 
         assert guacd_client.state == GuacdClient.STATE_CLOSED
@@ -456,7 +468,7 @@ class TestGuacdClientAdvanced:
             ]
         )
 
-        with pytest.raises(ConnectionError, match="Handshake failed"):
+        with pytest.raises(HandshakeError, match="Expected 'ready' instruction, got: unexpected"):
             await guacd_client._start_handshake()
 
         assert guacd_client.state == GuacdClient.STATE_CLOSED
@@ -504,12 +516,12 @@ class TestGuacdClientAdvanced:
             b"",  # Connection closed
         ]
 
-        guacd_client._send_buffer_to_websocket = AsyncMock()
+        guacd_client._process_and_forward_buffer = AsyncMock()
 
         await guacd_client.start()
 
         assert guacd_client.state == GuacdClient.STATE_CLOSED
-        assert guacd_client._send_buffer_to_websocket.called
+        assert guacd_client._process_and_forward_buffer.called
 
     @pytest.mark.asyncio
     async def test_start_message_processing_cancelled(self, guacd_client):
@@ -540,71 +552,75 @@ class TestGuacdClientAdvanced:
         assert guacd_client.state == GuacdClient.STATE_CLOSED
 
     @pytest.mark.asyncio
-    async def test_send_buffer_to_websocket_sync_handling(
+    async def test_process_and_forward_buffer_sync_handling(
         self, guacd_client, mock_client_connection
     ):
-        """Test _send_buffer_to_websocket with sync instruction handling."""
+        """Test _process_and_forward_buffer with sync instruction handling."""
         guacd_client._buffer = "4.sync,9.123456789;4.test,4.data;"
         guacd_client.send_instruction = AsyncMock()
 
-        await guacd_client._send_buffer_to_websocket()
+        await guacd_client._process_and_forward_buffer()
 
         # Verify sync reply was sent
         guacd_client.send_instruction.assert_called_with(["sync", "123456789"])
 
-        # Verify messages were sent to WebSocket
+        # Verify messages were sent to WebSocket (properly formatted)
         assert mock_client_connection.send_message.call_count == 2
+        # First call should be the formatted sync instruction
+        # Second call should be the formatted test instruction
 
     @pytest.mark.asyncio
-    async def test_send_buffer_to_websocket_invalid_instruction(
+    async def test_process_and_forward_buffer_invalid_instruction(
         self, guacd_client, mock_client_connection
     ):
-        """Test _send_buffer_to_websocket with invalid instruction."""
+        """Test _process_and_forward_buffer with invalid instruction."""
         guacd_client._buffer = "invalid;4.test,4.data;"
 
-        await guacd_client._send_buffer_to_websocket()
-
-        # Should skip invalid instruction but process valid one
-        assert mock_client_connection.send_message.call_count == 1
-        mock_client_connection.send_message.assert_called_with("4.test,4.data;")
+        # Since parse_instruction now raises exceptions for invalid instructions,
+        # this test should expect an exception instead of graceful skipping
+        with pytest.raises(ProtocolParsingError):
+            await guacd_client._process_and_forward_buffer()
 
     @pytest.mark.asyncio
-    async def test_send_buffer_to_websocket_closed_connection(
+    async def test_process_and_forward_buffer_closed_connection(
         self, guacd_client, mock_client_connection
     ):
-        """Test _send_buffer_to_websocket when WebSocket connection is closed."""
+        """Test _process_and_forward_buffer when WebSocket connection is closed."""
         guacd_client._buffer = "4.test,4.data;"
         mock_client_connection.state = 0  # Closed state
 
-        await guacd_client._send_buffer_to_websocket()
+        await guacd_client._process_and_forward_buffer()
 
         # Should not send message when WebSocket is closed
         mock_client_connection.send_message.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_send_buffer_to_websocket_sync_error(
+    async def test_process_and_forward_buffer_sync_error(
         self, guacd_client, mock_client_connection
     ):
-        """Test _send_buffer_to_websocket when sync reply fails."""
+        """Test _process_and_forward_buffer when sync reply fails."""
         guacd_client._buffer = "4.sync,9.123456789;"
         guacd_client.send_instruction = AsyncMock(side_effect=Exception("Send error"))
 
-        # Should not raise exception, should handle error gracefully
-        await guacd_client._send_buffer_to_websocket()
+        # Sync errors should be handled gracefully and not propagate
+        await guacd_client._process_and_forward_buffer()
 
-        # Verify message was still sent to WebSocket
+        # Verify message was sent to WebSocket before sync error
         mock_client_connection.send_message.assert_called_once()
+        # Verify sync instruction was attempted (and failed)
+        guacd_client.send_instruction.assert_called_with(["sync", "123456789"])
 
     @pytest.mark.asyncio
-    async def test_send_buffer_to_websocket_exception(
+    async def test_process_and_forward_buffer_exception(
         self, guacd_client, mock_client_connection
     ):
-        """Test _send_buffer_to_websocket with exception."""
+        """Test _process_and_forward_buffer with exception."""
         guacd_client._buffer = "4.test,4.data;"
         mock_client_connection.send_message.side_effect = Exception("Send error")
 
-        # Should not raise exception, should handle error gracefully
-        await guacd_client._send_buffer_to_websocket()
+        # The new implementation doesn't catch exceptions, so it should propagate
+        with pytest.raises(Exception, match="Send error"):
+            await guacd_client._process_and_forward_buffer()
 
     @pytest.mark.asyncio
     async def test_close_with_exception(self, guacd_client):

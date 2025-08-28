@@ -2,79 +2,111 @@
 
 import asyncio
 import logging
-from typing import Optional
+from typing import List, Optional
 
-from .exceptions import GuacdConnectionError, HandshakeError
+from .exceptions import (
+    GuacdConnectionError, HandshakeError, ProtocolParsingError
+)
+from .filter import GuacamoleFilter, ErrorFilter
 
 
 class GuacamoleProtocol:
-    """Handles Guacamole protocol formatting and parsing."""
+    """
+    Handles Guacamole protocol formatting and parsing with a robust, stateful parser
+    that correctly handles all protocol edge cases, including special characters
+    and Unicode surrogate pairs.
+    """
 
     @staticmethod
-    def format_instruction(parts: list[str]) -> str:
-        """Format instruction parts into Guacamole protocol format.
-
-        Args:
-            parts: List of instruction parts
-
-        Returns:
-            Formatted Guacamole protocol instruction
-        """
+    def format_instruction(parts: List[str]) -> str:
+        """Formats instruction parts into the Guacamole protocol string format."""
         formatted_parts = []
         for part in parts:
-            if part is None:
-                part = ""
-            part_str = str(part)
+            part_str = str(part if part is not None else "")
+            # The protocol counts Unicode code points, not bytes or UTF-16 characters.
+            # In Python, len() on a string correctly gives the number of code points.
             formatted_parts.append(f"{len(part_str)}.{part_str}")
-        instruction = ",".join(formatted_parts) + ";"
-        logger = logging.getLogger(__name__)
-        logger.debug(f"Formatted instruction: {instruction}")
-        return instruction
+        return ",".join(formatted_parts) + ";"
 
     @staticmethod
-    def parse_instruction(instruction: str) -> list[str]:
-        """Parse a Guacamole protocol instruction into its parts."""
-        logger = logging.getLogger(__name__)
-        logger.debug(f"Parsing instruction: {instruction}")
-        if not instruction.endswith(";"):
-            logger.debug("Invalid instruction - missing semicolon")
-            return []
-        instruction = instruction[:-1]
-        parts = []
-        for element in instruction.split(","):
-            if "." not in element:
-                logger.debug(f"Skipping invalid element: {element}")
-                continue
-            try:
-                length_str, content = element.split(".", 1)
-                expected_length = int(length_str)
-                if len(content) == expected_length:
-                    parts.append(content)
-                    logger.debug(f"Parsed element: {content}")
-                else:
-                    remaining = element[len(length_str) + 1 :]
-                    if len(remaining) == expected_length:
-                        parts.append(remaining)
-                        logger.debug(f"Parsed element with dots: {remaining}")
-            except ValueError as e:
-                logger.debug(f"Failed to parse element: {element}, error: {e}")
-                continue
-        logger.debug(f"Parsed parts: {parts}")
-        return parts
-
-    @staticmethod
-    def parse_attribute(attribute: str) -> str:
-        """Parse attribute from Guacamole protocol format.
-
-        Args:
-            attribute: Attribute in format "length.value"
-
-        Returns:
-            Parsed attribute value
+    def _find_instruction_end(buffer: str) -> int:
         """
-        if "." not in attribute:
-            return attribute
-        return attribute.split(".", 1)[1]
+        Finds the end of the first complete Guacamole instruction in the buffer
+        by correctly parsing each element's length prefix. This is a faithful
+        implementation of the logic in GuacamoleParser.java.
+
+        Returns the index of the terminating semicolon, or -1 if a complete
+        instruction is not yet in the buffer.
+
+        Raises ProtocolParsingError on malformed data.
+        """
+        idx = 0
+        while idx < len(buffer):
+            # Find the end of the length prefix for the current element
+            length_end = buffer.find('.', idx)
+            if length_end == -1:
+                return -1  # Incomplete: length prefix not fully available
+
+            try:
+                # Extract and parse the length of the upcoming element
+                length = int(buffer[idx:length_end])
+            except ValueError:
+                raise ProtocolParsingError(
+                    f"Invalid non-numeric length prefix at index {idx}", raw_data=buffer
+                )
+
+            # Calculate the full element's end and the terminator's position
+            terminator_idx = length_end + 1 + length
+
+            if terminator_idx >= len(buffer):
+                return -1  # Incomplete: element content or terminator not fully available
+
+            terminator = buffer[terminator_idx]
+
+            # If it's a semicolon, we've found the end of the instruction
+            if terminator == ';':
+                return terminator_idx
+
+            # If it's a comma, this element is valid, so move to the start of the next one
+            if terminator == ',':
+                idx = terminator_idx + 1
+                continue
+
+            # Any other character is a protocol violation
+            raise ProtocolParsingError(
+                f"Expected ',' or ';' but found '{terminator}' at index {terminator_idx}",
+                raw_data=buffer,
+            )
+
+        return -1 # No complete instruction found in the buffer
+
+    @staticmethod
+    def parse_instruction(instruction: str) -> List[str]:
+        """
+        Parses a single, complete, semicolon-terminated Guacamole instruction string.
+        This assumes the input string is a valid and complete instruction.
+        """
+        if not instruction.endswith(";"):
+            raise ProtocolParsingError(
+                "parse_instruction should only be called on a complete, semicolon-terminated instruction.",
+                raw_data=instruction,
+            )
+
+        instruction = instruction[:-1]
+        if not instruction: # Handle empty instruction case like "0.;"
+            return []
+            
+        parts = []
+        idx = 0
+        while idx < len(instruction):
+            length_end = instruction.find('.', idx)
+            length = int(instruction[idx:length_end])
+            content_start = length_end + 1
+            content_end = content_start + length
+            parts.append(instruction[content_start:content_end])
+            idx = content_end + 1  # Move past the comma to the next element's start
+
+        return parts
 
 
 class GuacdClient:
@@ -84,23 +116,15 @@ class GuacdClient:
     STATE_OPEN = 1
     STATE_CLOSED = 2
 
-    def __init__(
-        self,
-        client_connection,
-    ):
-        """Initialize guacd client.
-
-        Args:
-            client_connection: Associated client connection
-        """
+    def __init__(self, client_connection):
+        """Initialize guacd client."""
         self.client_connection = client_connection
         self.logger = logging.getLogger(__name__)
-
+        self.filters: List[GuacamoleFilter] = [ErrorFilter()]
         self.state = self.STATE_OPENING
-        self.writer = None
-        self.reader = None
+        self.writer: Optional[asyncio.StreamWriter] = None
+        self.reader: Optional[asyncio.StreamReader] = None
         self._buffer = ""
-        self._activity_check_task = None
         self.last_activity = asyncio.get_event_loop().time()
         self.logger.debug("GuacdClient initialized")
 
@@ -121,48 +145,28 @@ class GuacdClient:
             ) from e
 
     async def _start_handshake(self):
-        """Initiate handshake with guacd."""
+        """Initiate handshake with guacd, raising specific exceptions on failure."""
         try:
             protocol = self.client_connection.connection_config.protocol.value
-            self.logger.debug("Starting handshake - Step 1")
-            self.logger.debug(f"Selecting protocol: {protocol}")
             await self.send_instruction(["select", protocol])
-            self.logger.debug("Starting handshake - Step 2")
-            self.logger.debug("Waiting for args instruction...")
+
             instruction = await self._receive_instruction()
-            self.logger.debug(f"Received instruction: {instruction}")
-            if not instruction:
-                self.logger.error("No instruction received")
+            if not instruction or instruction[0] != "args":
                 raise HandshakeError(
-                    "No instruction received during handshake",
-                    handshake_phase="select",
-                )
-            if instruction[0] != "args":
-                self.logger.error(f"Expected 'args' instruction, got: {instruction[0]}")
-                raise HandshakeError(
-                    f"Expected 'args' instruction, got: {instruction[0]}",
+                    "Expected 'args' instruction from guacd",
                     handshake_phase="args",
-                    expected_instruction="args",
-                    received_instruction=instruction[0],
+                    received_instruction=instruction[0] if instruction else "None",
                 )
-            self.logger.debug("Starting handshake - Step 3")
+
             settings = self.client_connection.connection_config.settings
-            width = settings.width
-            height = settings.height
-            dpi = settings.dpi
-            self.logger.debug(f"Sending screen size: {width}x{height}x{dpi}")
-            await self.send_instruction(["size", width, height, dpi])
-            self.logger.debug("Sending audio support")
+            await self.send_instruction(["size", settings.width, settings.height, settings.dpi])
             await self.send_instruction(["audio", "audio/L16"])
-            self.logger.debug("Sending video support")
             await self.send_instruction(["video"])
-            self.logger.debug("Sending image support")
             await self.send_instruction(["image", "image/png", "image/jpeg"])
-            self.logger.debug("Starting handshake - Step 4")
+
             version = instruction[1]
             param_names = instruction[2:]
             params = ["connect", version]
-            settings = self.client_connection.connection_config.settings
             for name in param_names:
                 attr = name.replace("-", "_")
                 value = getattr(settings, attr, "")
@@ -171,100 +175,72 @@ class GuacdClient:
                 if value is None:
                     value = ""
                 params.append(str(value))
-            self.logger.debug("Sending connection parameters (dynamic mapping)")
-            self.logger.debug(f"Full params list: {params}")
-            await self.send_instruction(params)
-            self.logger.debug("Starting handshake - Step 5")
-            self.logger.debug("Waiting for ready instruction...")
-            ready_instruction = await self._receive_instruction()
-            self.logger.debug(f"Received instruction: {ready_instruction}")
-            if not ready_instruction:
-                self.logger.error("No ready instruction received")
-                raise HandshakeError(
-                    "No ready instruction received during handshake",
-                    handshake_phase="ready",
-                    expected_instruction="ready",
-                )
-            if ready_instruction[0] != "ready":
-                if ready_instruction[0] == "error":
-                    error_msg = (
-                        ready_instruction[1]
-                        if len(ready_instruction) > 1
-                        else "Unknown error"
-                    )
-                    self.logger.error(f"guacd returned error: {error_msg}")
-                    raise HandshakeError(
-                        f"guacd error: {error_msg}",
-                        handshake_phase="ready",
-                        expected_instruction="ready",
-                        received_instruction="error",
-                    )
-                else:
-                    self.logger.error(
-                        f"Expected 'ready' instruction, got: {ready_instruction[0]}"
-                    )
-                    raise HandshakeError(
-                        f"Expected 'ready' instruction, got: {ready_instruction[0]}",
-                        handshake_phase="ready",
-                        expected_instruction="ready",
-                        received_instruction=ready_instruction[0],
-                    )
-            connection_id = (
-                ready_instruction[1] if len(ready_instruction) > 1 else "unknown"
-            )
-            self.logger.debug(f"Connection established with ID: {connection_id}")
-            self.state = self.STATE_OPEN
-            self.logger.debug(
-                "Handshake completed successfully - ready for interactive phase"
-            )
-            self.logger.debug("GuacdClient is now in OPEN state")
-        except Exception as e:
-            self.logger.error(f"Handshake failed: {e}")
-            self.state = self.STATE_CLOSED
-            raise ConnectionError(f"Handshake failed: {e}") from e
 
-    async def send_instruction(self, instruction_parts: list[str]):
-        """Send a formatted instruction to guacd."""
-        if not self.writer:
-            self.logger.error("Not connected to guacd")
-            raise ConnectionError("Not connected to guacd")
+            await self.send_instruction(params)
+
+            ready_instruction = await self._receive_instruction()
+            if not ready_instruction:
+                raise HandshakeError("No 'ready' instruction received from guacd", handshake_phase="ready")
+
+            self.filters[0].filter(ready_instruction)
+
+            if ready_instruction[0] != "ready":
+                raise HandshakeError(
+                    f"Expected 'ready' instruction, got: {ready_instruction[0]}",
+                    handshake_phase="ready",
+                    received_instruction=ready_instruction[0]
+                )
+
+            self.state = self.STATE_OPEN
+            self.logger.info("Guacd handshake completed successfully.")
+        except (ProtocolParsingError, HandshakeError) as e:
+            self.state = self.STATE_CLOSED
+            self.logger.error(f"Handshake failed due to protocol error: {e}")
+            raise
+        except Exception as e:
+            self.state = self.STATE_CLOSED
+            self.logger.error(f"An unexpected error occurred during handshake: {e}")
+            raise GuacdConnectionError("Unexpected handshake failure") from e
+
+    async def send_instruction(self, instruction_parts: List[str]):
         instruction = GuacamoleProtocol.format_instruction(instruction_parts)
-        self.logger.debug(f"Sending raw instruction: {instruction}")
-        self.writer.write(instruction.encode())
-        await self.writer.drain()
-        self.last_activity = asyncio.get_event_loop().time()
+        await self.send_raw_message(instruction)
 
     async def send_raw_message(self, message: str):
-        """Send a raw message directly to guacd."""
         if not self.writer:
-            self.logger.error("Not connected to guacd")
             raise ConnectionError("Not connected to guacd")
-        self.logger.debug(f"Sending raw message to guacd: {message}")
         self.writer.write(message.encode())
         await self.writer.drain()
         self.last_activity = asyncio.get_event_loop().time()
 
-    async def _receive_instruction(self) -> Optional[list[str]]:
-        self.logger.debug("Waiting for instruction...")
-        while ";" not in self._buffer:
+    async def _receive_instruction(self) -> Optional[List[str]]:
+        """Read from the socket until a complete instruction is buffered, then parse it."""
+        while True:
+            try:
+                instruction_end = GuacamoleProtocol._find_instruction_end(self._buffer)
+                if instruction_end != -1:
+                    instruction_str = self._buffer[:instruction_end + 1]
+                    self._buffer = self._buffer[instruction_end + 1:]
+                    return GuacamoleProtocol.parse_instruction(instruction_str)
+            except ProtocolParsingError:
+                self.logger.error("Protocol parsing error, closing connection.")
+                await self.close()
+                raise
+
             if not self.reader:
-                self.logger.error("No reader available")
                 return None
             chunk = await self.reader.read(4096)
             if not chunk:
-                self.logger.error("Connection closed by server")
+                self.logger.info("Guacd connection closed while waiting for instruction.")
                 return None
-            decoded = chunk.decode()
-            self.logger.debug(f"Received raw chunk: {decoded}")
-            self._buffer += decoded
-            self.last_activity = asyncio.get_event_loop().time()
-        instruction_end = self._buffer.index(";")
-        instruction = self._buffer[: instruction_end + 1]
-        self._buffer = self._buffer[instruction_end + 1 :]
-        self.logger.debug(f"Processing instruction: {instruction}")
-        parsed = GuacamoleProtocol.parse_instruction(instruction)
-        self.logger.debug(f"Parsed instruction parts: {parsed}")
-        return parsed
+            self._buffer += chunk.decode(errors="replace")
+
+    def _apply_filters(self, instruction: List[str]) -> Optional[List[str]]:
+        current_instruction = instruction
+        for f in self.filters:
+            if current_instruction is None: return None
+            current_instruction = f.filter(current_instruction)
+        return current_instruction
 
     async def start(self):
         """Start processing guacd messages in an event-driven loop."""
@@ -290,7 +266,7 @@ class GuacdClient:
                     self.logger.debug(
                         f"Received guacd data({len(data)} chars):{self._buffer[:120]}"
                     )
-                    await self._send_buffer_to_websocket()
+                    await self._process_and_forward_buffer()
                 except asyncio.CancelledError:
                     self.logger.info("guacd message loop cancelled")
                     break
@@ -302,51 +278,42 @@ class GuacdClient:
             self.logger.debug("guacd message loop ended")
             self.state = self.STATE_CLOSED
 
-    async def _send_buffer_to_websocket(self):
-        try:
-            while ";" in self._buffer:
-                delimiter_pos = self._buffer.index(";")
-                instruction = self._buffer[: delimiter_pos + 1]
-                self._buffer = self._buffer[delimiter_pos + 1 :]
-                parsed = GuacamoleProtocol.parse_instruction(instruction)
-                if not parsed:
-                    self.logger.debug(
-                        f"Skipping invalid instr for WebSocket: {instruction}"
-                    )
-                    continue
+    async def _process_and_forward_buffer(self):
+        """Parse all complete instructions from buffer, filter them, and forward."""
+        while True:
+            try:
+                instruction_end = GuacamoleProtocol._find_instruction_end(self._buffer)
+                if instruction_end == -1:
+                    break # No more complete instructions in buffer
+            except ProtocolParsingError:
+                self.logger.error("Protocol parsing error in buffer, closing connection.")
+                await self.close()
+                raise
+
+            instruction_str = self._buffer[:instruction_end + 1]
+            self._buffer = self._buffer[instruction_end + 1:]
+            
+            parsed = GuacamoleProtocol.parse_instruction(instruction_str)
+            filtered = self._apply_filters(parsed)
+
+            if filtered:
+                final_instruction_str = GuacamoleProtocol.format_instruction(filtered)
                 if self.client_connection.state == self.client_connection.STATE_OPEN:
-                    await self.client_connection.send_message(instruction)
+                    await self.client_connection.send_message(final_instruction_str)
                 else:
-                    self.logger.debug("WebSocket closed, not sending instruction.")
                     break
-                try:
-                    if (
-                        parsed
-                        and parsed[0] == "sync"
-                        and len(parsed) > 1
-                        and self.client_connection.state
-                        == self.client_connection.STATE_OPEN
-                    ):
-                        timestamp = parsed[1]
-                        await self.send_instruction(["sync", timestamp])
-                        self.logger.debug(f"Sent sync reply with timestamp {timestamp}")
-                except Exception as e:
-                    self.logger.debug(f"Failed to parse/send sync reply: {e}")
-        except Exception as e:
-            self.logger.debug(f"Error sending buffer to WebSocket: {e}")
+                
+                if filtered[0] == "sync":
+                    await self.send_instruction(["sync", filtered[1]])
 
     async def close(self):
-        """Close the guacd connection."""
-        if self.state != self.STATE_CLOSED:  # Only close if not already closed
-            self.logger.debug("Closing guacd connection")
+        if self.state != self.STATE_CLOSED and self.writer:
             self.state = self.STATE_CLOSED
-            
-            if self.writer:
-                try:
-                    self.writer.close()
-                    await self.writer.wait_closed()
-                    self.writer = None  # Clear reference after closing
-                except Exception as e:
-                    self.logger.debug(f"Error closing guacd connection: {e}")  # Changed from error to debug
-        else:
-            self.logger.debug("GuacdClient already closed")
+            try:
+                self.writer.close()
+                await self.writer.wait_closed()
+            except Exception as e:
+                self.logger.debug(f"Error closing guacd writer: {e}")
+        self.writer = None
+        self.reader = None
+

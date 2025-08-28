@@ -283,7 +283,7 @@ class TestCryptoError:
         )
 
         assert error.details["token_length"] == 128
-        assert error.details["cipher"] == "AES-256-CBC"
+        assert error.details["cipher_info"] == "AES-256-CBC"
         assert isinstance(error, GuapyCryptoError)
 
 
