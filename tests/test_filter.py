@@ -4,26 +4,26 @@ import pytest
 
 from guapy.exceptions import (
     GuapyClientBadRequestError,
+    GuapyClientBadTypeError,
+    GuapyClientOverrunError,
+    GuapyClientTimeoutError,
+    GuapyClientTooManyError,
+    GuapyForbiddenError,
     GuapyProtocolError,
+    GuapyResourceClosedError,
+    GuapyResourceConflictError,
     GuapyResourceNotFoundError,
     GuapyServerBusyError,
+    GuapyServerError,
     GuapySessionClosedError,
+    GuapySessionConflictError,
+    GuapySessionTimeoutError,
     GuapyUnauthorizedError,
     GuapyUnsupportedError,
     GuapyUpstreamError,
-    GuapyUpstreamTimeoutError,
-    GuapyForbiddenError,
-    GuapyServerError,
-    GuapyResourceClosedError,
     GuapyUpstreamNotFoundError,
+    GuapyUpstreamTimeoutError,
     GuapyUpstreamUnavailableError,
-    GuapyClientTimeoutError,
-    GuapyClientOverrunError,
-    GuapyClientBadTypeError,
-    GuapyResourceConflictError,
-    GuapySessionConflictError,
-    GuapySessionTimeoutError,
-    GuapyClientTooManyError,
 )
 from guapy.filter import GUACD_ERROR_MAP, ErrorFilter, GuacamoleFilter
 
@@ -68,7 +68,7 @@ class TestErrorFilter:
         # Test unauthorized error (0x0301 = 769)
         with pytest.raises(GuapyUnauthorizedError) as exc_info:
             error_filter.filter(["error", "Access denied", "769"])
-        
+
         assert "guacd error: Access denied" in str(exc_info.value)
         assert exc_info.value.details["guacd_status_code"] == 769
 
@@ -76,7 +76,7 @@ class TestErrorFilter:
         """Test that error instructions with unknown status codes raise generic protocol error."""
         with pytest.raises(GuapyProtocolError) as exc_info:
             error_filter.filter(["error", "Unknown error", "999"])
-        
+
         assert "guacd error: Unknown error" in str(exc_info.value)
         assert exc_info.value.details["guacd_status_code"] == 999
 
@@ -107,7 +107,7 @@ class TestErrorFilter:
         unknown_status = 0x9999
         with pytest.raises(GuapyProtocolError) as exc_info:
             error_filter.filter(["error", "Unknown error type", str(unknown_status)])
-        
+
         assert "guacd error: Unknown error type" in str(exc_info.value)
         assert exc_info.value.details["guacd_status_code"] == unknown_status
 
@@ -116,7 +116,6 @@ class TestErrorFilter:
         test_cases = [
             # Unsupported operations
             (0x0100, GuapyUnsupportedError),
-            
             # Server errors (0x02xx)
             (0x0200, GuapyServerError),
             (0x0201, GuapyServerBusyError),
@@ -130,7 +129,6 @@ class TestErrorFilter:
             (0x0209, GuapySessionConflictError),
             (0x020A, GuapySessionTimeoutError),
             (0x020B, GuapySessionClosedError),
-            
             # Client errors (0x03xx)
             (0x0300, GuapyClientBadRequestError),
             (0x0301, GuapyUnauthorizedError),
@@ -140,11 +138,13 @@ class TestErrorFilter:
             (0x030F, GuapyClientBadTypeError),
             (0x031D, GuapyClientTooManyError),
         ]
-        
+
         for status_code, expected_exception in test_cases:
             with pytest.raises(expected_exception) as exc_info:
-                error_filter.filter(["error", f"Test error {status_code}", str(status_code)])
-            
+                error_filter.filter(
+                    ["error", f"Test error {status_code}", str(status_code)]
+                )
+
             assert f"guacd error: Test error {status_code}" in str(exc_info.value)
             assert exc_info.value.details["guacd_status_code"] == status_code
 
@@ -159,12 +159,28 @@ class TestGuacdErrorMap:
             # Unsupported operations
             0x0100,
             # Server errors (0x02xx)
-            0x0200, 0x0201, 0x0202, 0x0203, 0x0204, 0x0205, 0x0206, 0x0207, 0x0208,
-            0x0209, 0x020A, 0x020B,
+            0x0200,
+            0x0201,
+            0x0202,
+            0x0203,
+            0x0204,
+            0x0205,
+            0x0206,
+            0x0207,
+            0x0208,
+            0x0209,
+            0x020A,
+            0x020B,
             # Client errors (0x03xx)
-            0x0300, 0x0301, 0x0303, 0x0308, 0x030D, 0x030F, 0x031D
+            0x0300,
+            0x0301,
+            0x0303,
+            0x0308,
+            0x030D,
+            0x030F,
+            0x031D,
         }
-        
+
         assert set(GUACD_ERROR_MAP.keys()) == expected_codes
 
     def test_error_map_values_are_exception_classes(self):

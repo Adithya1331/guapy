@@ -120,10 +120,10 @@ class GuapyServer:
         """Setup CORS middleware."""
         self.app.add_middleware(
             CORSMiddleware,
-            allow_origins=self.client_options.cors_allow_origins,  
-            allow_credentials=self.client_options.cors_allow_credentials,  
-            allow_methods=self.client_options.cors_allow_methods,  
-            allow_headers=self.client_options.cors_allow_headers,  
+            allow_origins=self.client_options.cors_allow_origins,
+            allow_credentials=self.client_options.cors_allow_credentials,
+            allow_methods=self.client_options.cors_allow_methods,
+            allow_headers=self.client_options.cors_allow_headers,
         )
 
     async def handle_websocket_connection(self, websocket: WebSocket):
@@ -189,7 +189,7 @@ class GuapyServer:
                     f"Connection cleaned up: {connection_id}",
                     extra={"connection_id": connection_id},
                 )
-            # FIX: Ensure client connection is properly closed
+            # Ensure client connection is properly closed
             if client_connection is not None:
                 try:
                     await client_connection.close()

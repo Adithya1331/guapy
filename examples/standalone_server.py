@@ -22,7 +22,7 @@ async def main():
             key="MySuperSecretKeyForParamsToken12",
         ),
         cors_allow_origins=[
-            "http://localhost:3000",  # React dev server
+            "http://localhost:3000",
         ],
         cors_allow_credentials=True,
         cors_allow_methods=["GET", "POST", "OPTIONS"],

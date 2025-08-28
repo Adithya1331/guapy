@@ -147,9 +147,21 @@ app.mount("/guapy", guapy_server.app)
 ## Development & Examples
 
 - See the `examples/` directory for usage patterns
-- Run tests: `pytest`
-- Lint: `ruff check .`
-- Format: `ruff format .`
+- Run tests: `uv run pytest`
+- Lint: `uv run ruff check .`
+- Format: `uv run ruff format .`
+- Security audit: `uv run pip-audit`
+- Full verification: `uv run python scripts/verify_package.py`
+
+### CI/CD
+
+This project uses GitHub Actions for:
+- **Continuous Integration**: Automated testing across Python 3.9-3.13 on Linux, Windows, and macOS
+- **Security Scanning**: Dependency vulnerability checks with pip-audit
+- **Automated Publishing**: Secure releases to TestPyPI and PyPI using Trusted Publishing
+- **Pre-release Support**: Alpha/beta/rc versions automatically go to TestPyPI only
+
+See [PUBLISHING_SETUP.md](PUBLISHING_SETUP.md) for complete setup instructions.
 
 ---
 

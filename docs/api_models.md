@@ -3,11 +3,26 @@
 Pydantic models for configuration and data validation.
 
 ## Main Models
+
+### Core Configuration Models
 - `ConnectionType`: Enum of supported connection types (RDP, VNC, SSH, TELNET)
 - `ScreenSize`: Screen size configuration (width, height, dpi)
 - `CryptConfig`: Encryption configuration (cypher, key)
 - `ClientOptions`: Client configuration including CORS settings (see CORS Configuration below)
-- `GuacdOptions`, `ConnectionConfig`, `ServerConfig`: Typed models for all config/data structures
+- `GuacdOptions`: Configuration for guacd daemon connection (host, port)
+- `ServerConfig`: Server configuration (host, port, secret_key, max_connections, etc.)
+
+### Connection Models
+- `ConnectionConfig`: Complete connection configuration with protocol and settings
+- `TokenData`: Structured data for connection tokens
+- `ConnectionSettings`: Base class for connection-specific settings with dynamic attributes
+
+### Settings Classes
+Connection-specific settings that extend `ConnectionSettings`:
+- RDP settings: hostname, port, username, password, domain, security, drive options
+- SSH settings: hostname, port, username, password, font configuration
+- VNC settings: hostname, port, username, password
+- Telnet settings: hostname, port, username, password
 
 ## CORS Configuration
 

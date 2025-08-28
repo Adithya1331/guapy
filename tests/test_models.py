@@ -153,7 +153,7 @@ class TestConnectionSettings:
             hostname="test.example.com",
             port=3389,
             username="testuser",
-            password="testpass",  # noqa: S106 # Test data
+            password="testpass",  # Test data
             domain="TESTDOMAIN",
             security="nla",
             ignore_cert=True,
@@ -184,7 +184,7 @@ class TestTokenData:
                 "hostname": "test.example.com",
                 "port": 3389,
                 "username": "testuser",
-                "password": "testpass",  # noqa: S106 # Test data
+                "password": "testpass",  # Test data
                 "width": 1920,
                 "height": 1080,
                 "dpi": 96,

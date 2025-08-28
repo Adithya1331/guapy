@@ -321,31 +321,29 @@ class ClientOptions(BaseModel):
     """Client configuration options."""
 
     max_inactivity_time: int = 10000  # milliseconds
-    crypt: CryptConfig  # FIX: Ensure explicit type annotation
-    
-    # FIX: Add configurable CORS settings for security
+    crypt: CryptConfig
+
     cors_allow_origins: list[str] = Field(
         default_factory=lambda: ["http://localhost:3000", "http://localhost:8080"],
-        description="List of allowed origins for CORS. Use ['*'] only for development."
+        description="List of allowed origins for CORS. Use ['*'] only for development.",
     )
     cors_allow_credentials: bool = Field(
-        default=True,
-        description="Whether to allow credentials in CORS requests"
+        default=True, description="Whether to allow credentials in CORS requests"
     )
     cors_allow_methods: list[str] = Field(
         default_factory=lambda: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        description="List of allowed HTTP methods for CORS"
+        description="List of allowed HTTP methods for CORS",
     )
     cors_allow_headers: list[str] = Field(
-        default_factory=lambda: ["*"],
-        description="List of allowed headers for CORS"
+        default_factory=lambda: ["*"], description="List of allowed headers for CORS"
     )
-    
-    # FIX: Add utility methods for common CORS configurations
+
     @classmethod
-    def create_with_development_cors(cls, crypt: CryptConfig, **kwargs) -> "ClientOptions":
+    def create_with_development_cors(
+        cls, crypt: CryptConfig, **kwargs
+    ) -> "ClientOptions":
         """Create ClientOptions with development-friendly CORS settings.
-        
+
         WARNING: Only use in development environments!
         """
         return cls(
@@ -354,11 +352,13 @@ class ClientOptions(BaseModel):
             cors_allow_credentials=True,
             cors_allow_methods=["*"],
             cors_allow_headers=["*"],
-            **kwargs
+            **kwargs,
         )
-    
-    @classmethod 
-    def create_with_production_cors(cls, crypt: CryptConfig, allowed_origins: list[str], **kwargs) -> "ClientOptions":
+
+    @classmethod
+    def create_with_production_cors(
+        cls, crypt: CryptConfig, allowed_origins: list[str], **kwargs
+    ) -> "ClientOptions":
         """Create ClientOptions with production-safe CORS settings."""
         return cls(
             crypt=crypt,
@@ -366,7 +366,7 @@ class ClientOptions(BaseModel):
             cors_allow_credentials=True,
             cors_allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
             cors_allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
-            **kwargs
+            **kwargs,
         )
 
     # Default connection settings for each protocol type

@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from guapy.exceptions import GuacdConnectionError, ProtocolParsingError, HandshakeError
+from guapy.exceptions import GuacdConnectionError, HandshakeError, ProtocolParsingError
 from guapy.guacd_client import GuacamoleProtocol, GuacdClient
 
 
@@ -39,7 +39,10 @@ class TestGuacamoleProtocol:
 
     def test_parse_instruction_invalid_no_semicolon(self):
         """Test parse_instruction with invalid input - no semicolon."""
-        with pytest.raises(ProtocolParsingError, match="parse_instruction should only be called on a complete, semicolon-terminated instruction"):
+        with pytest.raises(
+            ProtocolParsingError,
+            match="parse_instruction should only be called on a complete, semicolon-terminated instruction",
+        ):
             GuacamoleProtocol.parse_instruction("6.select,3.rdp")
 
     def test_parse_instruction_invalid_format(self):
@@ -105,7 +108,7 @@ class TestGuacdClient:
         connection.connection_config.connection.hostname = "localhost"
         connection.connection_config.connection.port = 3389
         connection.connection_config.connection.username = "user"
-        connection.connection_config.connection.password = "password"  # noqa: S105
+        connection.connection_config.connection.password = "password"
         connection.connection_config.connection.domain = "domain"
         connection.connection_config.connection.security = "any"
         connection.connection_config.connection.ignore_cert = True
@@ -150,7 +153,7 @@ class TestGuacdClient:
         instruction = ["ready", "connection_id"]
         filtered = guacd_client._apply_filters(instruction)
         assert filtered == instruction
-        
+
         # Test error instruction raises exception
         error_instruction = ["error", "Test error", "769"]  # 0x0301 = 769
         with pytest.raises(Exception):  # Should raise GuapyUnauthorizedError
@@ -329,7 +332,7 @@ class TestGuacdClientAdvanced:
         connection.connection_config.settings.hostname = "localhost"
         connection.connection_config.settings.port = 3389
         connection.connection_config.settings.username = "user"
-        connection.connection_config.settings.password = "test_pass"  # noqa: S105
+        connection.connection_config.settings.password = "test_pass"
         connection.connection_config.settings.domain = "domain"
         connection.connection_config.settings.security = "any"
         connection.connection_config.settings.ignore_cert = True  # Boolean value
@@ -402,7 +405,11 @@ class TestGuacdClientAdvanced:
         guacd_client._receive_instruction = AsyncMock(
             side_effect=[
                 ["args", "1.0", "width", "height"],  # First response
-                ["error", "Connection failed", "513"],  # Error response with status code 0x0201 (SERVER_BUSY)
+                [
+                    "error",
+                    "Connection failed",
+                    "513",
+                ],  # Error response with status code 0x0201 (SERVER_BUSY)
             ]
         )
 
@@ -421,7 +428,11 @@ class TestGuacdClientAdvanced:
         guacd_client._receive_instruction = AsyncMock(
             side_effect=[
                 ["args", "1.0", "width", "height"],  # First response
-                ["error", "", "512"],  # Error response without message but with status code 0x0200 (SERVER_ERROR)
+                [
+                    "error",
+                    "",
+                    "512",
+                ],  # Error response without message but with status code 0x0200 (SERVER_ERROR)
             ]
         )
 
@@ -444,7 +455,9 @@ class TestGuacdClientAdvanced:
             ]
         )
 
-        with pytest.raises(HandshakeError, match="No 'ready' instruction received from guacd"):
+        with pytest.raises(
+            HandshakeError, match="No 'ready' instruction received from guacd"
+        ):
             await guacd_client._start_handshake()
 
         assert guacd_client.state == GuacdClient.STATE_CLOSED
@@ -462,7 +475,9 @@ class TestGuacdClientAdvanced:
             ]
         )
 
-        with pytest.raises(HandshakeError, match="Expected 'ready' instruction, got: unexpected"):
+        with pytest.raises(
+            HandshakeError, match="Expected 'ready' instruction, got: unexpected"
+        ):
             await guacd_client._start_handshake()
 
         assert guacd_client.state == GuacdClient.STATE_CLOSED

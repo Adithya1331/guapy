@@ -41,7 +41,7 @@ def mock_get_config():
         server_config.port = 8080
         server_config.guacd_host = "127.0.0.1"
         server_config.guacd_port = 4822
-        server_config.secret_key = "test-key-from-config"  # noqa: S105
+        server_config.secret_key = "test-key-from-config"
         server_config.max_connections = 100
         mock.return_value = server_config
         yield mock
@@ -183,7 +183,7 @@ class TestCLI:
             server_config.port = 8080
             server_config.guacd_host = "127.0.0.1"
             server_config.guacd_port = 4822
-            server_config.secret_key = "test-key-from-config"  # noqa: S105
+            server_config.secret_key = "test-key-from-config"
             mock_get_config.return_value = server_config
 
             # Run command with default options
@@ -208,7 +208,7 @@ class TestCLI:
             server_config.port = 8080
             server_config.guacd_host = "127.0.0.1"
             server_config.guacd_port = 4822
-            server_config.secret_key = "test-key-from-config"  # noqa: S105
+            server_config.secret_key = "test-key-from-config"
             mock_get_config.return_value = server_config
 
             # Run command with options

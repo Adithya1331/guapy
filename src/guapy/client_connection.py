@@ -203,11 +203,14 @@ class ClientConnection:
                 await self.guacd_client.close()
 
             try:
-                # FIX: Check if websocket is still available before closing
-                if hasattr(self.websocket, 'client_state') and self.websocket.client_state != 3:  # 3 = DISCONNECTED
+                # Check if websocket is still available before closing
+                if (
+                    hasattr(self.websocket, "client_state")
+                    and self.websocket.client_state != 3
+                ):  # 3 = DISCONNECTED
                     await self.websocket.close()
             except Exception as e:
-                self.logger.debug(  # FIX: Changed from error to debug as this is expected during disconnect
+                self.logger.debug(
                     f"WebSocket close error (likely already closed): {e}",
                     extra={"connection_id": self.connection_id},
                 )
@@ -218,7 +221,7 @@ class ClientConnection:
             )
 
     async def _handle_websocket_messages(self):
-        """Handle WebSocket messages in event-driven manner"""
+        """Handle WebSocket messages in event-driven manner."""
         try:
             while self.state == self.STATE_OPEN:
                 try:
@@ -315,7 +318,7 @@ class ClientConnection:
                 extra={"connection_id": self.connection_id},
             )
 
-        # FIX: Set connection state to closed when WebSocket is done
+        # Set connection state to closed when WebSocket is done
         if self.state == self.STATE_OPEN:
             self.logger.debug(
                 f"WebSocket done, marking connection {self.connection_id} as closed",

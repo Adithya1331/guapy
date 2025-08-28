@@ -62,19 +62,19 @@ class TestGuapyServerInitialization:
         from starlette.middleware.cors import CORSMiddleware
 
         assert CORSMiddleware in middleware_classes
-        
-        # FIX: Verify that CORS uses configured settings, not hardcoded wildcards
+
+        # Verify that CORS uses configured settings, not hardcoded wildcards
         cors_middleware = None
         for middleware in guapy_server.app.user_middleware:
             if middleware.cls == CORSMiddleware:
                 cors_middleware = middleware
                 break
-        
+
         assert cors_middleware is not None
         # The middleware should be configured with client_options CORS settings
         # Note: We can't directly inspect FastAPI middleware kwargs after setup,
         # but we can verify the client_options contain proper CORS configuration
-        assert hasattr(guapy_server.client_options, 'cors_allow_origins')
+        assert hasattr(guapy_server.client_options, "cors_allow_origins")
         assert isinstance(guapy_server.client_options.cors_allow_origins, list)
         assert len(guapy_server.client_options.cors_allow_origins) > 0
 
@@ -272,10 +272,10 @@ class TestGuapyServerConfiguration:
         assert server.client_options.max_inactivity_time == 30000
         assert server.guacd_options.host == "192.168.1.100"
         assert server.guacd_options.port == 4823
-        
+
     def test_server_with_custom_cors_configuration(self):
         """Test server with custom CORS configuration."""
-        # FIX: Test custom CORS configuration
+        # Test custom CORS configuration
         client_options = ClientOptions(
             crypt=CryptConfig(key="test-encryption-key-1234567890ab"),
             cors_allow_origins=["https://myapp.com", "https://admin.myapp.com"],
@@ -283,41 +283,57 @@ class TestGuapyServerConfiguration:
             cors_allow_headers=["Content-Type", "Authorization"],
             cors_allow_credentials=False,
         )
-        
+
         server = GuapyServer(client_options)
-        
+
         # Verify CORS configuration is applied
-        assert server.client_options.cors_allow_origins == ["https://myapp.com", "https://admin.myapp.com"]
+        assert server.client_options.cors_allow_origins == [
+            "https://myapp.com",
+            "https://admin.myapp.com",
+        ]
         assert server.client_options.cors_allow_methods == ["GET", "POST"]
-        assert server.client_options.cors_allow_headers == ["Content-Type", "Authorization"]
+        assert server.client_options.cors_allow_headers == [
+            "Content-Type",
+            "Authorization",
+        ]
         assert server.client_options.cors_allow_credentials is False
-    
+
     def test_server_with_development_cors(self):
         """Test server with development CORS configuration."""
-        # FIX: Test development CORS utility method
+        # Test development CORS utility method
         crypt_config = CryptConfig(key="test-encryption-key-1234567890ab")
         client_options = ClientOptions.create_with_development_cors(crypt_config)
-        
+
         server = GuapyServer(client_options)
-        
+
         # Should use wildcard for development
         assert server.client_options.cors_allow_origins == ["*"]
         assert server.client_options.cors_allow_methods == ["*"]
         assert server.client_options.cors_allow_headers == ["*"]
-    
+
     def test_server_with_production_cors(self):
         """Test server with production CORS configuration."""
-        # FIX: Test production CORS utility method
+        # Test production CORS utility method
         crypt_config = CryptConfig(key="test-encryption-key-1234567890ab")
         allowed_origins = ["https://myapp.com", "https://app.mycompany.com"]
-        client_options = ClientOptions.create_with_production_cors(crypt_config, allowed_origins)
-        
+        client_options = ClientOptions.create_with_production_cors(
+            crypt_config, allowed_origins
+        )
+
         server = GuapyServer(client_options)
-        
+
         # Should use specific origins for production
         assert server.client_options.cors_allow_origins == allowed_origins
-        assert "*" not in server.client_options.cors_allow_origins  # No wildcards in production
-        assert server.client_options.cors_allow_methods == ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+        assert (
+            "*" not in server.client_options.cors_allow_origins
+        )  # No wildcards in production
+        assert server.client_options.cors_allow_methods == [
+            "GET",
+            "POST",
+            "PUT",
+            "DELETE",
+            "OPTIONS",
+        ]
         assert "Content-Type" in server.client_options.cors_allow_headers
         assert "Authorization" in server.client_options.cors_allow_headers
 

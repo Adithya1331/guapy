@@ -126,12 +126,12 @@ class TestClientConnection:
     async def test_send_message_exception(self, client_connection):
         """Test send_message with exception."""
         client_connection.websocket.send_text.side_effect = Exception("Send error")
-        
+
         # Mock websocket to have an available client_state (not disconnected) for close to work
         client_connection.websocket.client_state = 1
-        
+
         await client_connection.send_message("test message")
-        
+
         # State should be closed after exception
         assert client_connection.state == ClientConnection.STATE_CLOSED
 
@@ -140,7 +140,7 @@ class TestClientConnection:
         """Test close method."""
         # Set up guacd client
         client_connection.guacd_client = mock_guacd_client
-        
+
         # Mock websocket to have an available client_state (not disconnected)
         client_connection.websocket.client_state = 1  # Connected state
 
@@ -609,7 +609,7 @@ class TestClientConnectionClose:
         """Test close method with guacd client."""
         client_connection.state = ClientConnection.STATE_OPEN
         client_connection.guacd_client = mock_guacd_client
-        
+
         # Mock websocket to have an available client_state (not disconnected)
         mock_websocket.client_state = 1  # Connected state
 
@@ -624,7 +624,7 @@ class TestClientConnectionClose:
         """Test close method without guacd client."""
         client_connection.state = ClientConnection.STATE_OPEN
         client_connection.guacd_client = None
-        
+
         # Mock websocket to have an available client_state (not disconnected)
         mock_websocket.client_state = 1  # Connected state
 

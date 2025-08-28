@@ -30,6 +30,43 @@ Pydantic models for configuration and data validation.
 - `ConnectionType`, `ScreenSize`, `CryptConfig`, etc.: Typed models for all config/data structures.
 - `ClientOptions`: Now includes configurable CORS security settings for production-ready deployments.
 
+### `guapy.filter`
+Filter system for processing Guacamole protocol instructions.
+- `GuacamoleFilter`: Abstract base class for creating custom instruction filters.
+- `ErrorFilter`: Built-in filter that handles error instructions and raises appropriate exceptions.
+
+### `guapy.exceptions`
+Comprehensive exception hierarchy for error handling.
+- `GuapyError`: Base exception class with structured error information.
+- Protocol-specific exceptions: `GuapyProtocolError`, `HandshakeError`, `ProtocolParsingError`.
+- Connection exceptions: `GuacdConnectionError`, `WebSocketConnectionError`, `GuapyTimeoutError`.
+- Authentication exceptions: `GuapyAuthenticationError`, `TokenDecryptionError`, `TokenEncryptionError`.
+- Guacamole status code exceptions: Maps guacd error codes to specific Python exceptions.
+
+### `guapy.cli`
+Command-line interface for running and configuring Guapy.
+- `run`: Start the Guapy server with configurable options.
+- `show_config`: Display the current server configuration.
+
+See [guapy.cli](api_cli.md) for detailed CLI documentation.
+
+### `guapy.filter`
+Filter system for processing Guacamole protocol instructions.
+- `GuacamoleFilter`: Abstract base class for creating custom instruction filters.
+- `ErrorFilter`: Built-in filter that handles error instructions and raises appropriate exceptions.
+
+See [guapy.filter](api_filter.md) for detailed filter documentation.
+
+### `guapy.exceptions`
+Comprehensive exception hierarchy for error handling.
+- `GuapyError`: Base exception class with structured error information.
+- Protocol-specific exceptions: `GuapyProtocolError`, `HandshakeError`, `ProtocolParsingError`.
+- Connection exceptions: `GuacdConnectionError`, `WebSocketConnectionError`, `GuapyTimeoutError`.
+- Authentication exceptions: `GuapyAuthenticationError`, `TokenDecryptionError`, `TokenEncryptionError`.
+- Guacamole status code exceptions: Maps guacd error codes to specific Python exceptions.
+
+See [guapy.exceptions](api_exceptions.md) for detailed exception documentation.
+
 ## Security Features
 
 ### CORS Configuration

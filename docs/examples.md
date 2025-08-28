@@ -46,6 +46,186 @@ from fastapi import FastAPI
 from guapy.server import create_server
 from guapy.models import ClientOptions, GuacdOptions, CryptConfig
 
+# Create your main FastAPI application
+app = FastAPI(title="My Application")
+
+@app.get("/api/users")
+async def get_users():
+    return {"users": []}
+
+# Configure Guapy
+SECRET_KEY = "YOUR_SUPER_SECRET_KEY_MUST_BE_32_BYTES"
+
+client_options = ClientOptions(
+    crypt=CryptConfig(
+        cypher="AES-256-CBC",
+        key=SECRET_KEY,
+    )
+)
+guacd_options = GuacdOptions(host="localhost", port=4822)
+
+# Create and mount Guapy server
+guapy_server = create_server(client_options, guacd_options)
+app.mount("/guapy", guapy_server.app)
+
+# Your application will have:
+# - Your API at /api/*
+# - Guapy WebSocket at /guapy/webSocket
+# - Guapy health check at /guapy/health
+```
+
+## 3. CLI Usage
+
+### Basic CLI Commands
+
+```bash
+# Start server with defaults
+python -m guapy.cli run
+
+# Start with custom configuration
+python -m guapy.cli run --host 0.0.0.0 --port 8080 --guacd-host 192.168.1.100
+
+# Show current configuration
+python -m guapy.cli show-config
+```
+
+### Production Configuration
+
+```bash
+# Using environment variables
+export GUAPY_SECRET_KEY="MySuperSecretKeyForParamsToken12"
+export GUAPY_HOST="0.0.0.0"
+export GUAPY_PORT="8080"
+python -m guapy.cli run
+
+# Using config file
+python -m guapy.cli run --config-file /etc/guapy/production.json
+```
+
+## 4. Error Handling
+
+```python
+from guapy.exceptions import (
+    GuapyError, GuacdConnectionError, TokenDecryptionError,
+    GuapyUnauthorizedError, GuapyProtocolError
+)
+from guapy.server import create_server
+from guapy.models import ClientOptions, CryptConfig, GuacdOptions
+
+try:
+    client_options = ClientOptions(
+        crypt=CryptConfig(
+            cypher="AES-256-CBC",
+            key="MySuperSecretKeyForParamsToken12",
+        )
+    )
+    guacd_options = GuacdOptions(host="localhost", port=4822)
+    server = create_server(client_options, guacd_options)
+    
+except GuacdConnectionError as e:
+    print(f"Failed to connect to guacd: {e}")
+    print(f"Error details: {e.details}")
+    
+except TokenDecryptionError as e:
+    print(f"Token decryption failed: {e}")
+    
+except GuapyError as e:
+    print(f"Guapy error [{e.error_code}]: {e.message}")
+    if e.details:
+        print(f"Additional details: {e.details}")
+```
+
+## 5. Custom Filters
+
+```python
+from guapy.filter import GuacamoleFilter
+from guapy.server import create_server
+from guapy.models import ClientOptions, CryptConfig, GuacdOptions
+from typing import Optional
+import logging
+
+class AuditFilter(GuacamoleFilter):
+    """Filter that logs all instructions for auditing."""
+    
+    def __init__(self):
+        self.logger = logging.getLogger("audit")
+    
+    def filter(self, instruction: list[str]) -> Optional[list[str]]:
+        # Log all instructions for security auditing
+        self.logger.info(f"Instruction: {instruction[0] if instruction else 'empty'}")
+        return instruction  # Pass through unchanged
+
+class SecurityFilter(GuacamoleFilter):
+    """Filter that blocks potentially dangerous instructions."""
+    
+    def filter(self, instruction: list[str]) -> Optional[list[str]]:
+        if not instruction:
+            return instruction
+            
+        # Block clipboard operations for security
+        if instruction[0] == "clipboard":
+            return None  # Silently drop
+            
+        # Block file transfer operations
+        if instruction[0] in ["file", "pipe"]:
+            return None
+            
+        return instruction
+
+# To use custom filters, you would need to modify the GuacdClient
+# This is an advanced use case - see source code for implementation details
+```
+
+## 6. CORS Configuration
+
+### Development CORS (Permissive)
+```python
+from guapy.models import ClientOptions, CryptConfig
+
+# WARNING: Only for development!
+client_options = ClientOptions.create_with_development_cors(
+    crypt=CryptConfig(
+        cypher="AES-256-CBC",
+        key="MySuperSecretKeyForParamsToken12",
+    )
+)
+# This allows all origins - never use in production!
+```
+
+### Production CORS (Secure)
+```python
+from guapy.models import ClientOptions, CryptConfig
+
+# Production-safe CORS configuration
+allowed_origins = [
+    "https://myapp.com",
+    "https://admin.myapp.com"
+]
+
+client_options = ClientOptions.create_with_production_cors(
+    crypt=CryptConfig(
+        cypher="AES-256-CBC",
+        key="MySuperSecretKeyForParamsToken12",
+    ),
+    allowed_origins=allowed_origins
+)
+```
+
+### Custom CORS Configuration
+```python
+from guapy.models import ClientOptions, CryptConfig
+
+client_options = ClientOptions(
+    crypt=CryptConfig(
+        cypher="AES-256-CBC",
+        key="MySuperSecretKeyForParamsToken12",
+    ),
+    cors_allow_origins=["https://myapp.com"],
+    cors_allow_credentials=True,
+    cors_allow_methods=["GET", "POST", "OPTIONS"],
+    cors_allow_headers=["Content-Type", "Authorization"],
+)
+
 # Your existing FastAPI app
 app = FastAPI()
 

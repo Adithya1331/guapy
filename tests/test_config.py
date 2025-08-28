@@ -110,7 +110,7 @@ class TestConfigManager:
         assert server_config.port == 8080
         assert server_config.guacd_host == "localhost"
         assert server_config.guacd_port == 4822
-        assert server_config.secret_key == "test-key-12345678901234567890123456789012"  # noqa: S105
+        assert server_config.secret_key == "test-key-12345678901234567890123456789012"
         assert server_config.max_connections == 100
 
     def test_get_config_with_cli_args(self, config_manager):
@@ -118,14 +118,14 @@ class TestConfigManager:
         server_config = config_manager.get_config(
             host="0.0.0.0",  # noqa: S104
             port=9000,
-            secret_key="cli-key-12345678901234567890123456789012",  # nosec  # noqa: S106
+            secret_key="cli-key-12345678901234567890123456789012",  # nosec
         )
 
         assert isinstance(server_config, ServerConfig)
         # CLI args should override file config
         assert server_config.host == "0.0.0.0"  # noqa: S104
         assert server_config.port == 9000
-        assert server_config.secret_key == "cli-key-12345678901234567890123456789012"  # noqa: S105
+        assert server_config.secret_key == "cli-key-12345678901234567890123456789012"
         # Other values should come from file config
         assert server_config.guacd_host == "localhost"
         assert server_config.guacd_port == 4822
@@ -148,7 +148,7 @@ class TestConfigManager:
             # Environment variable should override defaults
             assert server_config.host == "0.0.0.0"  # noqa: S104
             assert (
-                server_config.secret_key == "env-key-12345678901234567890123456789012"  # noqa: S105
+                server_config.secret_key == "env-key-12345678901234567890123456789012"
             )
             # Other values should be defaults
             assert server_config.port == 8080
@@ -182,7 +182,7 @@ class TestConfigManager:
             assert server_config.host == "cli-host"
             # Env should override file
             assert (
-                server_config.secret_key == "env-key-12345678901234567890123456789012"  # noqa: S105
+                server_config.secret_key == "env-key-12345678901234567890123456789012"
             )
             # File should override default
             assert server_config.port == 8081
@@ -216,7 +216,7 @@ class TestGetConfig:
                 port=8080,
                 guacd_host="localhost",
                 guacd_port=4822,
-                secret_key="test-key-12345678901234567890123456789012",  # noqa: S106
+                secret_key="test-key-12345678901234567890123456789012",
             )
             mock_manager.get_config.return_value = mock_config
 
@@ -236,7 +236,7 @@ class TestGetConfig:
                 port=8080,
                 guacd_host="localhost",
                 guacd_port=4822,
-                secret_key="test-key-12345678901234567890123456789012",  # noqa: S106
+                secret_key="test-key-12345678901234567890123456789012",
             )
             mock_manager.get_config.return_value = mock_config
 
