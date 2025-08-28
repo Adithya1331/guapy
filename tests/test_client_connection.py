@@ -142,7 +142,9 @@ class TestClientConnection:
         client_connection.guacd_client = mock_guacd_client
 
         # Mock websocket to have an available client_state (not disconnected)
-        client_connection.websocket.client_state = 1  # Connected state
+        # This ensures the conditional check in close() method passes
+        client_connection.websocket.client_state = MagicMock()
+        client_connection.websocket.client_state.value = 1  # Connected state, not DISCONNECTED (3)
 
         # Close connection
         await client_connection.close()
@@ -611,7 +613,9 @@ class TestClientConnectionClose:
         client_connection.guacd_client = mock_guacd_client
 
         # Mock websocket to have an available client_state (not disconnected)
-        mock_websocket.client_state = 1  # Connected state
+        # This ensures the conditional check in close() method passes
+        mock_websocket.client_state = MagicMock()
+        mock_websocket.client_state.value = 1  # Connected state, not DISCONNECTED (3)
 
         await client_connection.close()
 
@@ -626,7 +630,9 @@ class TestClientConnectionClose:
         client_connection.guacd_client = None
 
         # Mock websocket to have an available client_state (not disconnected)
-        mock_websocket.client_state = 1  # Connected state
+        # This ensures the conditional check in close() method passes
+        mock_websocket.client_state = MagicMock()
+        mock_websocket.client_state.value = 1  # Connected state, not DISCONNECTED (3)
 
         await client_connection.close()
 
