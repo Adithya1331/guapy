@@ -144,7 +144,9 @@ class TestClientConnection:
         # Mock websocket to have an available client_state (not disconnected)
         # This ensures the conditional check in close() method passes
         client_connection.websocket.client_state = MagicMock()
-        client_connection.websocket.client_state.value = 1  # Connected state, not DISCONNECTED (3)
+        client_connection.websocket.client_state.value = (
+            1  # Connected state, not DISCONNECTED (3)
+        )
 
         # Close connection
         await client_connection.close()
