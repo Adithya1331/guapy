@@ -55,6 +55,7 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     environment: testpypi
+    if: "contains(github.ref_name, 'a') || contains(github.ref_name, 'b') || contains(github.ref_name, 'rc')"
     steps:
     - name: Download build artifacts
       uses: actions/download-artifact@v4
@@ -62,14 +63,14 @@ jobs:
         name: dist
         path: dist/
 
-    - name: Publish to TestPyPI
+    - name: Publish to TestPyPI (pre-releases only)
       uses: pypa/gh-action-pypi-publish@release/v1
       with:
         repository-url: https://test.pypi.org/legacy/
         print-hash: true
 
   publish-pypi:
-    needs: [build, publish-testpypi]
+    needs: build
     runs-on: ubuntu-latest
     environment: pypi
     if: "!contains(github.ref_name, 'a') && !contains(github.ref_name, 'b') && !contains(github.ref_name, 'rc')"
@@ -80,25 +81,7 @@ jobs:
         name: dist
         path: dist/
 
-    - name: Publish to PyPI
+    - name: Publish to PyPI (stable releases only)
       uses: pypa/gh-action-pypi-publish@release/v1
       with:
-        print-hash: true
-
-  publish-prerelease:
-    needs: [build, publish-testpypi]
-    runs-on: ubuntu-latest
-    environment: testpypi
-    if: "contains(github.ref_name, 'a') || contains(github.ref_name, 'b') || contains(github.ref_name, 'rc')"
-    steps:
-    - name: Download build artifacts
-      uses: actions/download-artifact@v4
-      with:
-        name: dist
-        path: dist/
-
-    - name: Publish pre-release to TestPyPI only
-      uses: pypa/gh-action-pypi-publish@release/v1
-      with:
-        repository-url: https://test.pypi.org/legacy/
         print-hash: true
