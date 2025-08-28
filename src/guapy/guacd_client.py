@@ -147,7 +147,7 @@ class GuacdClient:
         try:
             if self.client_connection.connection_config is None:
                 raise GuacdConnectionError("Connection config is not set")
-                
+
             protocol = self.client_connection.connection_config.protocol.value
             await self.send_instruction(["select", protocol])
 
