@@ -158,7 +158,7 @@ class GuacamoleCrypto:
 
             # Parse JSON data
             try:
-                data = json.loads(decrypted.decode("utf-8"))
+                data: dict[str, Any] = json.loads(decrypted.decode("utf-8"))
                 self.logger.debug(f"Decrypted data: {json.dumps(data, indent=2)}")
                 self.logger.debug("Token decrypted successfully")
                 return data

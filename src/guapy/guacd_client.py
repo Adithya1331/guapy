@@ -2,7 +2,10 @@
 
 import asyncio
 import logging
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
+
+if TYPE_CHECKING:
+    from .client_connection import ClientConnection
 
 from .exceptions import GuacdConnectionError, HandshakeError, ProtocolParsingError
 from .filter import ErrorFilter, GuacamoleFilter
@@ -111,7 +114,7 @@ class GuacdClient:
     STATE_OPEN = 1
     STATE_CLOSED = 2
 
-    def __init__(self, client_connection):
+    def __init__(self, client_connection: "ClientConnection") -> None:
         """Initialize guacd client."""
         self.client_connection = client_connection
         self.logger = logging.getLogger(__name__)
@@ -123,7 +126,7 @@ class GuacdClient:
         self.last_activity = asyncio.get_event_loop().time()
         self.logger.debug("GuacdClient initialized")
 
-    async def connect(self, host: str, port: int):
+    async def connect(self, host: str, port: int) -> None:
         """Establish TCP connection to guacd."""
         try:
             self.logger.debug(f"Connecting to guacd at {host}:{port}")
@@ -139,9 +142,12 @@ class GuacdClient:
                 guacd_port=port,
             ) from e
 
-    async def _start_handshake(self):
+    async def _start_handshake(self) -> None:
         """Initiate handshake with guacd, raising specific exceptions on failure."""
         try:
+            if self.client_connection.connection_config is None:
+                raise GuacdConnectionError("Connection config is not set")
+                
             protocol = self.client_connection.connection_config.protocol.value
             await self.send_instruction(["select", protocol])
 
@@ -155,7 +161,7 @@ class GuacdClient:
 
             settings = self.client_connection.connection_config.settings
             await self.send_instruction(
-                ["size", settings.width, settings.height, settings.dpi]
+                ["size", str(settings.width), str(settings.height), str(settings.dpi)]
             )
             await self.send_instruction(["audio", "audio/L16"])
             await self.send_instruction(["video"])
@@ -202,12 +208,12 @@ class GuacdClient:
             self.logger.error(f"An unexpected error occurred during handshake: {e}")
             raise GuacdConnectionError("Unexpected handshake failure") from e
 
-    async def send_instruction(self, instruction_parts: list[str]):
-        '''Sends the instructions to format and then to guacd using send_raw_message'''
+    async def send_instruction(self, instruction_parts: list[str]) -> None:
+        """Sends the instructions to format and then to guacd using send_raw_message"""
         instruction = GuacamoleProtocol.format_instruction(instruction_parts)
         await self.send_raw_message(instruction)
 
-    async def send_raw_message(self, message: str):
+    async def send_raw_message(self, message: str) -> None:
         if not self.writer:
             raise ConnectionError("Not connected to guacd")
         self.writer.write(message.encode())
@@ -239,14 +245,14 @@ class GuacdClient:
             self._buffer += chunk.decode(errors="replace")
 
     def _apply_filters(self, instruction: list[str]) -> Optional[list[str]]:
-        current_instruction = instruction
+        current_instruction: Optional[list[str]] = instruction
         for f in self.filters:
             if current_instruction is None:
                 return None
             current_instruction = f.filter(current_instruction)
         return current_instruction
 
-    async def start(self):
+    async def start(self) -> None:
         """Start processing guacd messages in an event-driven loop."""
         self.logger.debug("Starting guacd message processing (event-driven)")
         try:
@@ -289,7 +295,7 @@ class GuacdClient:
             self.logger.debug("guacd message loop ended")
             self.state = self.STATE_CLOSED
 
-    async def _process_and_forward_buffer(self):
+    async def _process_and_forward_buffer(self) -> None:
         """Parse all complete instructions from buffer, filter them, and forward."""
         while True:
             try:
@@ -307,7 +313,7 @@ class GuacdClient:
             self._buffer = self._buffer[instruction_end + 1 :]
 
             parsed = GuacamoleProtocol.parse_instruction(instruction_str)
-            filtered = self._apply_filters(parsed)
+            filtered: Optional[list[str]] = self._apply_filters(parsed)
 
             if filtered:
                 final_instruction_str = GuacamoleProtocol.format_instruction(filtered)
@@ -319,7 +325,7 @@ class GuacdClient:
                 if filtered[0] == "sync":
                     await self.send_instruction(["sync", filtered[1]])
 
-    async def close(self):
+    async def close(self) -> None:
         if self.state != self.STATE_CLOSED:
             self.state = self.STATE_CLOSED
             if self.writer:

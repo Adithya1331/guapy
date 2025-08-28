@@ -1,7 +1,7 @@
 """Main server implementation for guapy."""
 
 import logging
-from typing import Callable, Optional
+from typing import Any, Callable, Optional, Union
 
 from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
@@ -71,11 +71,11 @@ class GuapyServer:
         # Log startup message
         self.logger.info("Starting Guapy server")
 
-    def _setup_routes(self):
+    def _setup_routes(self) -> None:
         """Setup FastAPI routes."""
 
         @self.app.get("/")
-        async def root():
+        async def root() -> dict[str, Union[str, int]]:
             """Root endpoint - returns server info."""
             return {
                 "name": "Guapy",
@@ -86,16 +86,16 @@ class GuapyServer:
             }
 
         @self.app.websocket("/")
-        async def websocket_endpoint(websocket: WebSocket):
+        async def websocket_endpoint(websocket: WebSocket) -> None:
             await self.handle_websocket_connection(websocket)
 
         @self.app.websocket("/webSocket")
-        async def websocket_alt_endpoint(websocket: WebSocket):
+        async def websocket_alt_endpoint(websocket: WebSocket) -> None:
             """Alternative WebSocket endpoint for compatibility existing clients."""
             await self.handle_websocket_connection(websocket)
 
         @self.app.get("/health")
-        async def health_check():
+        async def health_check() -> dict[str, Union[str, int]]:
             """Health check endpoint."""
             return {
                 "status": "healthy",
@@ -105,7 +105,7 @@ class GuapyServer:
             }
 
         @self.app.get("/stats")
-        async def get_stats():
+        async def get_stats() -> dict[str, Union[int, dict[str, Union[str, int]]]]:
             """Statistics endpoint."""
             return {
                 "active_connections": len(self.connections),
@@ -116,7 +116,7 @@ class GuapyServer:
                 },
             }
 
-    def _setup_middleware(self):
+    def _setup_middleware(self) -> None:
         """Setup CORS middleware."""
         self.app.add_middleware(
             CORSMiddleware,
@@ -126,7 +126,7 @@ class GuapyServer:
             allow_headers=self.client_options.cors_allow_headers,
         )
 
-    async def handle_websocket_connection(self, websocket: WebSocket):
+    async def handle_websocket_connection(self, websocket: WebSocket) -> None:
         """Handle individual WebSocket connections."""
         self.logger.debug("New WebSocket connection request received")
         self.connection_counter += 1
@@ -207,7 +207,7 @@ class GuapyServer:
 def create_server(
     client_options: ClientOptions,
     guacd_options: Optional[GuacdOptions] = None,
-    **kwargs,
+    **kwargs: Any,
 ) -> GuapyServer:
     """Factory function to create a GuapyServer instance.
 

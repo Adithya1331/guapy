@@ -38,7 +38,7 @@ def run(
     log_level: str = typer.Option(
         "debug", help="Log level (debug, info, warning, error, critical)"
     ),
-):
+) -> None:
     """Run the Guapy server."""
     try:
         config_kwargs = {
@@ -88,7 +88,7 @@ def show_config(
     config_file: str = typer.Option(
         None, help="Path to config file (default: config.json)"
     ),
-):
+) -> None:
     """Show the resolved server configuration."""
     try:
         config = get_config()

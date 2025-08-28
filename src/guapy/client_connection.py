@@ -53,7 +53,7 @@ class ClientConnection:
             client_options.crypt.cypher, client_options.crypt.key
         )
 
-    async def handle_connection(self):
+    async def handle_connection(self) -> None:
         """Main connection handler with proper state management."""
         try:
             self.logger.debug(
@@ -162,7 +162,7 @@ class ClientConnection:
                 "Connection handler ended", extra={"connection_id": self.connection_id}
             )
 
-    async def _process_token(self, token: str, query_params: dict[str, str]):
+    async def _process_token(self, token: str, query_params: dict[str, str]) -> None:
         """Process and validate connection token."""
         try:
             token_data = self.crypto.decrypt(token)
@@ -177,7 +177,7 @@ class ClientConnection:
         except Exception as e:
             raise TokenDecryptionError(f"Invalid token: {e}") from e
 
-    async def send_message(self, message: str):
+    async def send_message(self, message: str) -> None:
         """Send message to WebSocket client."""
         if self.state == self.STATE_OPEN:
             try:
@@ -190,7 +190,7 @@ class ClientConnection:
                 )
                 await self.close()
 
-    async def close(self):
+    async def close(self) -> None:
         """Close connection and cleanup."""
         if self.state != self.STATE_CLOSED:
             self.logger.debug(
@@ -206,7 +206,7 @@ class ClientConnection:
                 # Check if websocket is still available before closing
                 if (
                     hasattr(self.websocket, "client_state")
-                    and self.websocket.client_state != 3
+                    and self.websocket.client_state.value != 3
                 ):  # 3 = DISCONNECTED
                     await self.websocket.close()
             except Exception as e:
@@ -220,7 +220,7 @@ class ClientConnection:
                 extra={"connection_id": self.connection_id},
             )
 
-    async def _handle_websocket_messages(self):
+    async def _handle_websocket_messages(self) -> None:
         """Handle WebSocket messages in event-driven manner."""
         try:
             while self.state == self.STATE_OPEN:
@@ -292,7 +292,7 @@ class ClientConnection:
                 extra={"connection_id": self.connection_id},
             )
 
-    def _handle_websocket_done(self, task):
+    def _handle_websocket_done(self, task: asyncio.Task[None]) -> None:
         """Handle WebSocket task completion.
 
         This is called when the WebSocket task is done, either due to normal completion

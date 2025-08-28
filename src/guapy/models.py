@@ -2,7 +2,7 @@
 
 import logging
 from enum import Enum
-from typing import Any, Optional, Union
+from typing import Any, Optional
 
 from pydantic import BaseModel, Field
 
@@ -150,7 +150,7 @@ class TokenData(BaseModel):
     connection: dict[str, Any]
 
     @classmethod
-    def from_token(cls, token_data: dict):
+    def from_token(cls, token_data: Any) -> "TokenData":
         """Create from decrypted token data."""
         logger = logging.getLogger(__name__)
         logger.debug(f"Raw token data: {token_data}", extra={"token_data": token_data})
@@ -208,7 +208,7 @@ class ConnectionConfig(BaseModel):
     query_parameters: dict[str, str] = Field(default_factory=dict)
 
     @classmethod
-    def from_token(cls, token_data: dict[str, Any], query_params: dict[str, str]):
+    def from_token(cls, token_data: dict[str, Any], query_params: dict[str, str]) -> "ConnectionConfig":
         """Create from token data and query parameters."""
         logger = logging.getLogger(__name__)
         logger.debug(
@@ -340,7 +340,7 @@ class ClientOptions(BaseModel):
 
     @classmethod
     def create_with_development_cors(
-        cls, crypt: CryptConfig, **kwargs
+        cls, crypt: CryptConfig, **kwargs: Any
     ) -> "ClientOptions":
         """Create ClientOptions with development-friendly CORS settings.
 
@@ -357,7 +357,7 @@ class ClientOptions(BaseModel):
 
     @classmethod
     def create_with_production_cors(
-        cls, crypt: CryptConfig, allowed_origins: list[str], **kwargs
+        cls, crypt: CryptConfig, allowed_origins: list[str], **kwargs: Any
     ) -> "ClientOptions":
         """Create ClientOptions with production-safe CORS settings."""
         return cls(
@@ -371,7 +371,7 @@ class ClientOptions(BaseModel):
 
     # Default connection settings for each protocol type
     connection_default_settings: dict[
-        ConnectionType, dict[str, Union[str, int, bool]]
+        ConnectionType, dict[str, object]
     ] = Field(
         default_factory=lambda: {
             ConnectionType.RDP: {

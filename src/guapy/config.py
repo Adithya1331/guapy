@@ -8,7 +8,7 @@ import json
 import logging
 import os
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from .exceptions import GuapyConfigurationError
 from .models import ServerConfig
@@ -26,16 +26,16 @@ class ConfigManager:
             config_file: Path to configuration file, defaults to "config.json"
         """
         self.config_file = config_file or Path("config.json")
-        self._file_config = {}
-        self._env_config = {}
+        self._file_config: dict[str, Any] = {}
+        self._env_config: dict[str, Any] = {}
         self._load_config()
 
-    def _load_config(self):
+    def _load_config(self) -> None:
         """Load configuration from file and environment."""
         self._load_file_config()
         self._load_env_config()
 
-    def _load_file_config(self):
+    def _load_file_config(self) -> None:
         """Load configuration from JSON file."""
         if self.config_file.exists():
             try:
@@ -48,7 +48,7 @@ class ConfigManager:
         else:
             logger.debug(f"Config file {self.config_file} not found")
 
-    def _load_env_config(self):
+    def _load_env_config(self) -> None:
         """Load configuration from environment variables."""
         env_mapping = {
             "HOST": "host",
@@ -62,9 +62,10 @@ class ConfigManager:
         }
 
         for env_var, config_key in env_mapping.items():
-            value = os.getenv(env_var)
+            value: Optional[str] = os.getenv(env_var)
             if value is not None:
                 # Convert string values to appropriate types
+                processed_value: Any = value
                 if config_key in [
                     "port",
                     "guacd_port",
@@ -72,14 +73,14 @@ class ConfigManager:
                     "connection_timeout",
                 ]:
                     try:
-                        value = int(value)
+                        processed_value = int(value)
                     except ValueError:
                         logger.warning(f"Invalid integer value for {env_var}: {value}")
                         continue
 
-                self._env_config[config_key] = value
+                self._env_config[config_key] = processed_value
 
-    def get_config(self, **cli_args) -> ServerConfig:
+    def get_config(self, **cli_args: Any) -> ServerConfig:
         """Get final configuration with priority.
 
         CLI args > env vars > config file > defaults.
@@ -91,7 +92,7 @@ class ConfigManager:
             ServerConfig instance with resolved configuration
         """
         # Start with defaults
-        config_dict = {
+        config_dict: dict[str, Any] = {
             "host": "127.0.0.1",
             "port": 8080,
             "guacd_host": "localhost",
@@ -135,7 +136,7 @@ def get_config_manager(config_file: Optional[Path] = None) -> ConfigManager:
     return _default_manager
 
 
-def get_config(**cli_args) -> ServerConfig:
+def get_config(**cli_args: Any) -> ServerConfig:
     """Convenience function to get configuration using the default manager.
 
     Args:

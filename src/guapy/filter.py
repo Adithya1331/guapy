@@ -65,6 +65,7 @@ class GuacamoleFilter(ABC):
     """An abstract base class for filtering Guacamole instructions,
     mirroring the GuacamoleFilter.java interface.
     """
+
     @abstractmethod
     def filter(self, instruction: list[str]) -> Optional[list[str]]:
         """Applies a filter to the given instruction.
