@@ -68,38 +68,37 @@ jobs:
         repository-url: https://test.pypi.org/legacy/
         print-hash: true
 
-  # publish-pypi:
-  #   needs: [build, publish-testpypi]
-  #   runs-on: ubuntu-latest
-  #   environment: pypi
-  #   if: "!contains(github.ref_name, 'a') && !contains(github.ref_name, 'b') && !contains(github.ref_name, 'rc')"
-  #   steps:
-  #   - name: Download build artifacts
-  #     uses: actions/download-artifact@v4
-  #     with:
-  #       name: dist
-  #       path: dist/
+  publish-pypi:
+    needs: [build, publish-testpypi]
+    runs-on: ubuntu-latest
+    environment: pypi
+    if: "!contains(github.ref_name, 'a') && !contains(github.ref_name, 'b') && !contains(github.ref_name, 'rc')"
+    steps:
+    - name: Download build artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: dist
+        path: dist/
 
-  #   - name: Publish to PyPI
-  #     uses: pypa/gh-action-pypi-publish@release/v1
-  #     with:
-  #       print-hash: true
+    - name: Publish to PyPI
+      uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        print-hash: true
 
-  # Temporarily disabled - all releases go to TestPyPI only for now
-  # publish-prerelease:
-  #   needs: [build, publish-testpypi]
-  #   runs-on: ubuntu-latest
-  #   environment: testpypi
-  #   if: "contains(github.ref_name, 'a') || contains(github.ref_name, 'b') || contains(github.ref_name, 'rc')"
-  #   steps:
-  #   - name: Download build artifacts
-  #     uses: actions/download-artifact@v4
-  #     with:
-  #       name: dist
-  #       path: dist/
+  publish-prerelease:
+    needs: [build, publish-testpypi]
+    runs-on: ubuntu-latest
+    environment: testpypi
+    if: "contains(github.ref_name, 'a') || contains(github.ref_name, 'b') || contains(github.ref_name, 'rc')"
+    steps:
+    - name: Download build artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: dist
+        path: dist/
 
-  #   - name: Publish pre-release to TestPyPI only
-  #     uses: pypa/gh-action-pypi-publish@release/v1
-  #     with:
-  #       repository-url: https://test.pypi.org/legacy/
-  #       print-hash: true
+    - name: Publish pre-release to TestPyPI only
+      uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        repository-url: https://test.pypi.org/legacy/
+        print-hash: true
