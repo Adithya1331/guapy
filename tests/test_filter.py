@@ -12,6 +12,18 @@ from guapy.exceptions import (
     GuapyUnsupportedError,
     GuapyUpstreamError,
     GuapyUpstreamTimeoutError,
+    GuapyForbiddenError,
+    GuapyServerError,
+    GuapyResourceClosedError,
+    GuapyUpstreamNotFoundError,
+    GuapyUpstreamUnavailableError,
+    GuapyClientTimeoutError,
+    GuapyClientOverrunError,
+    GuapyClientBadTypeError,
+    GuapyResourceConflictError,
+    GuapySessionConflictError,
+    GuapySessionTimeoutError,
+    GuapyClientTooManyError,
 )
 from guapy.filter import GUACD_ERROR_MAP, ErrorFilter, GuacamoleFilter
 
@@ -69,33 +81,64 @@ class TestErrorFilter:
         assert exc_info.value.details["guacd_status_code"] == 999
 
     def test_error_instruction_minimal_format(self, error_filter):
-        """Test error instruction with minimal format."""
-        with pytest.raises(GuapyProtocolError) as exc_info:
-            error_filter.filter(["error"])
-        
-        assert "guacd error: Unknown guacd error" in str(exc_info.value)
-        assert exc_info.value.details["guacd_status_code"] == 0
+        """Test error instruction with minimal format (no message, no status code)."""
+        instruction = ["error"]
+        result = error_filter.filter(instruction)
+        # Minimal format with no status code defaults to 0 (SUCCESS), should pass through
+        assert result == instruction
 
     def test_error_instruction_no_status_code(self, error_filter):
         """Test error instruction with message but no status code."""
+        instruction = ["error", "Some error"]
+        result = error_filter.filter(instruction)
+        # No status code defaults to 0 (SUCCESS), should pass through
+        assert result == instruction
+
+    def test_error_instruction_success_status(self, error_filter):
+        """Test error instruction with SUCCESS status (0x0000) should pass through."""
+        instruction = ["error", "Success message", "0"]
+        result = error_filter.filter(instruction)
+        # SUCCESS status should pass through without raising an exception
+        assert result == instruction
+
+    def test_unknown_status_code_defensive_handling(self, error_filter):
+        """Test that unknown status codes fall back to GuapyProtocolError."""
+        # Test with a non-zero status code not in the map
+        unknown_status = 0x9999
         with pytest.raises(GuapyProtocolError) as exc_info:
-            error_filter.filter(["error", "Some error"])
+            error_filter.filter(["error", "Unknown error type", str(unknown_status)])
         
-        assert "guacd error: Some error" in str(exc_info.value)
-        assert exc_info.value.details["guacd_status_code"] == 0
+        assert "guacd error: Unknown error type" in str(exc_info.value)
+        assert exc_info.value.details["guacd_status_code"] == unknown_status
 
     def test_all_mapped_error_codes(self, error_filter):
         """Test that all mapped error codes raise the correct exception types."""
         test_cases = [
+            # Unsupported operations
             (0x0100, GuapyUnsupportedError),
+            
+            # Server errors (0x02xx)
+            (0x0200, GuapyServerError),
             (0x0201, GuapyServerBusyError),
             (0x0202, GuapyUpstreamTimeoutError),
             (0x0203, GuapyUpstreamError),
             (0x0204, GuapyResourceNotFoundError),
+            (0x0205, GuapyResourceConflictError),
+            (0x0206, GuapyResourceClosedError),
+            (0x0207, GuapyUpstreamNotFoundError),
+            (0x0208, GuapyUpstreamUnavailableError),
+            (0x0209, GuapySessionConflictError),
+            (0x020A, GuapySessionTimeoutError),
+            (0x020B, GuapySessionClosedError),
+            
+            # Client errors (0x03xx)
             (0x0300, GuapyClientBadRequestError),
             (0x0301, GuapyUnauthorizedError),
-            (0x0303, GuapyUnauthorizedError),
-            (0x020B, GuapySessionClosedError),
+            (0x0303, GuapyForbiddenError),
+            (0x0308, GuapyClientTimeoutError),
+            (0x030D, GuapyClientOverrunError),
+            (0x030F, GuapyClientBadTypeError),
+            (0x031D, GuapyClientTooManyError),
         ]
         
         for status_code, expected_exception in test_cases:
@@ -112,8 +155,14 @@ class TestGuacdErrorMap:
     def test_error_map_completeness(self):
         """Test that GUACD_ERROR_MAP contains all expected status codes."""
         expected_codes = {
-            0x0100, 0x0201, 0x0202, 0x0203, 0x0204, 0x0205,
-            0x0209, 0x020A, 0x020B, 0x0300, 0x0301, 0x0303, 0x031D
+            # Note: 0x0000 SUCCESS is intentionally not included as it's not an error
+            # Unsupported operations
+            0x0100,
+            # Server errors (0x02xx)
+            0x0200, 0x0201, 0x0202, 0x0203, 0x0204, 0x0205, 0x0206, 0x0207, 0x0208,
+            0x0209, 0x020A, 0x020B,
+            # Client errors (0x03xx)
+            0x0300, 0x0301, 0x0303, 0x0308, 0x030D, 0x030F, 0x031D
         }
         
         assert set(GUACD_ERROR_MAP.keys()) == expected_codes
@@ -124,7 +173,7 @@ class TestGuacdErrorMap:
             assert issubclass(exception_class, Exception)
             assert hasattr(exception_class, "__init__")
 
-    def test_duplicate_status_codes_map_to_same_exception(self):
-        """Test that status codes 0x0301 and 0x0303 both map to GuapyUnauthorizedError."""
+    def test_unauthorized_vs_forbidden_mapping(self):
+        """Test that 0x0301 maps to Unauthorized and 0x0303 maps to Forbidden."""
         assert GUACD_ERROR_MAP[0x0301] == GuapyUnauthorizedError
-        assert GUACD_ERROR_MAP[0x0303] == GuapyUnauthorizedError
+        assert GUACD_ERROR_MAP[0x0303] == GuapyForbiddenError

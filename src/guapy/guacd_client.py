@@ -307,13 +307,14 @@ class GuacdClient:
                     await self.send_instruction(["sync", filtered[1]])
 
     async def close(self):
-        if self.state != self.STATE_CLOSED and self.writer:
+        if self.state != self.STATE_CLOSED:
             self.state = self.STATE_CLOSED
-            try:
-                self.writer.close()
-                await self.writer.wait_closed()
-            except Exception as e:
-                self.logger.debug(f"Error closing guacd writer: {e}")
+            if self.writer:
+                try:
+                    self.writer.close()
+                    await self.writer.wait_closed()
+                except Exception as e:
+                    self.logger.debug(f"Error closing guacd writer: {e}")
         self.writer = None
         self.reader = None
 

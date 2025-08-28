@@ -208,7 +208,6 @@ class TestCompatibility:
             "websockets",
             "cryptography",
             "pydantic",
-            "aiofiles",
             "typer",
         ]
 

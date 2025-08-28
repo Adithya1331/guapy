@@ -36,7 +36,7 @@ class GuapyError(Exception):
         return error_str
 
 
-# Category: Configuration Errors
+# Configuration Errors
 class GuapyConfigurationError(GuapyError):
     """Raised when configuration is invalid or missing."""
     def __init__(self, message: str, **kwargs: Any) -> None:
@@ -44,7 +44,7 @@ class GuapyConfigurationError(GuapyError):
         super().__init__(message, **kwargs)
 
 
-# Category: Connection Errors
+# Connection Errors
 class GuapyConnectionError(GuapyError):
     """Base exception for connection-related errors."""
     def __init__(self, message: str, **kwargs: Any) -> None:
@@ -70,7 +70,7 @@ class WebSocketConnectionError(GuapyConnectionError):
         super().__init__(message, **kwargs)
 
 
-# Category: Protocol Errors
+# Protocol Errors
 class GuapyProtocolError(GuapyError):
     """Base exception for Guacamole protocol errors."""
     def __init__(self, message: str, **kwargs: Any) -> None:
@@ -90,7 +90,7 @@ class HandshakeError(GuapyProtocolError):
         super().__init__(message, **kwargs)
 
 
-# Category: Authentication and Security Errors
+# Authentication and Security Errors
 class GuapyAuthenticationError(GuapyError):
     """Base for authentication or authorization failures."""
     def __init__(self, message: str, **kwargs: Any) -> None:
@@ -116,8 +116,7 @@ class TokenEncryptionError(GuapyCryptoError):
         super().__init__(message, **kwargs)
 
 
-# --- Specific guacd Status Exceptions (from GuacamoleStatus.java) ---
-
+# Specific guacd Status Exceptions
 class GuapyUnsupportedError(GuapyProtocolError):
     """The requested operation is unsupported (Status: 0x0100)."""
     def __init__(self, message: str, **kwargs: Any) -> None:
@@ -179,14 +178,62 @@ class GuapyClientBadRequestError(GuapyProtocolError):
         super().__init__(message, **kwargs)
 
 class GuapyUnauthorizedError(GuapyAuthenticationError):
-    """Permission was denied to perform the operation (Status: 0x0301, 0x0303)."""
+    """Permission was denied to perform the operation (Status: 0x0301)."""
     def __init__(self, message: str, **kwargs: Any) -> None:
         kwargs.setdefault('error_code', "CLIENT_UNAUTHORIZED")
+        super().__init__(message, **kwargs)
+
+class GuapyForbiddenError(GuapyAuthenticationError):
+    """The operation is forbidden (Status: 0x0303)."""
+    def __init__(self, message: str, **kwargs: Any) -> None:
+        kwargs.setdefault('error_code', "CLIENT_FORBIDDEN")
         super().__init__(message, **kwargs)
 
 class GuapyClientTooManyError(GuapyProtocolError):
     """The client is already using too many resources (Status: 0x031D)."""
     def __init__(self, message: str, **kwargs: Any) -> None:
         kwargs.setdefault('error_code', "CLIENT_TOO_MANY")
+        super().__init__(message, **kwargs)
+
+class GuapyServerError(GuapyConnectionError):
+    """Generic server error for internal failures (Status: 0x0200)."""
+    def __init__(self, message: str, **kwargs: Any) -> None:
+        kwargs.setdefault('error_code', "SERVER_ERROR")
+        super().__init__(message, **kwargs)
+
+class GuapyResourceClosedError(GuapyConnectionError):
+    """A resource or stream has been closed (Status: 0x0206)."""
+    def __init__(self, message: str, **kwargs: Any) -> None:
+        kwargs.setdefault('error_code', "RESOURCE_CLOSED")
+        super().__init__(message, **kwargs)
+
+class GuapyUpstreamNotFoundError(GuapyConnectionError):
+    """The upstream host cannot be reached or resolved (Status: 0x0207)."""
+    def __init__(self, message: str, **kwargs: Any) -> None:
+        kwargs.setdefault('error_code', "UPSTREAM_NOT_FOUND")
+        super().__init__(message, **kwargs)
+
+class GuapyUpstreamUnavailableError(GuapyConnectionError):
+    """The upstream is refusing or unavailable to service connections (Status: 0x0208)."""
+    def __init__(self, message: str, **kwargs: Any) -> None:
+        kwargs.setdefault('error_code', "UPSTREAM_UNAVAILABLE")
+        super().__init__(message, **kwargs)
+
+class GuapyClientTimeoutError(GuapyConnectionError):
+    """Client timed out or gave no response (Status: 0x0308)."""
+    def __init__(self, message: str, **kwargs: Any) -> None:
+        kwargs.setdefault('error_code', "CLIENT_TIMEOUT")
+        super().__init__(message, **kwargs)
+
+class GuapyClientOverrunError(GuapyProtocolError):
+    """Client sent excessive data (Status: 0x030D)."""
+    def __init__(self, message: str, **kwargs: Any) -> None:
+        kwargs.setdefault('error_code', "CLIENT_OVERRUN")
+        super().__init__(message, **kwargs)
+
+class GuapyClientBadTypeError(GuapyProtocolError):
+    """Client sent unsupported or unexpected data type (Status: 0x030F)."""
+    def __init__(self, message: str, **kwargs: Any) -> None:
+        kwargs.setdefault('error_code', "CLIENT_BAD_TYPE")
         super().__init__(message, **kwargs)
 
